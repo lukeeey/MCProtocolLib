@@ -33,7 +33,6 @@ public enum EntityType {
     COMMAND_BLOCK_MINECART,
     COW,
     CREAKING,
-    CREAKING_TRANSIENT,
     CREEPER,
     DARK_OAK_BOAT,
     DARK_OAK_CHEST_BOAT,

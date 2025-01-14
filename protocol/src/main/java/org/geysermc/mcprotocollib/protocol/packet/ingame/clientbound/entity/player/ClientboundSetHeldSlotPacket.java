@@ -14,12 +14,12 @@ public class ClientboundSetHeldSlotPacket implements MinecraftPacket {
     private final int slot;
 
     public ClientboundSetHeldSlotPacket(ByteBuf in, MinecraftCodecHelper helper) {
-        this.slot = in.readByte();
+        this.slot = helper.readVarInt(in);
     }
 
     @Override
     public void serialize(ByteBuf out, MinecraftCodecHelper helper) {
-        out.writeByte(this.slot);
+        helper.writeVarInt(out, this.slot);
     }
 
     @Override

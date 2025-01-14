@@ -1,13 +1,15 @@
 package org.geysermc.mcprotocollib.network.event.session;
 
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.geysermc.mcprotocollib.network.Session;
-
+import org.geysermc.mcprotocollib.network.packet.Packet;
 /**
  * Called when a session encounters an error while reading or writing packet data.
  */
 public class PacketErrorEvent implements SessionEvent {
     private final Session session;
     private final Throwable cause;
+    private final @Nullable Class<? extends Packet> packetClass;
     private boolean suppress = false;
 
     /**
@@ -16,9 +18,10 @@ public class PacketErrorEvent implements SessionEvent {
      * @param session Session that the error came from.
      * @param cause Cause of the error.
      */
-    public PacketErrorEvent(Session session, Throwable cause) {
+    public PacketErrorEvent(Session session, Throwable cause, @Nullable Packet packetClass) {
         this.session = session;
         this.cause = cause;
+        this.packetClass = packetClass == null ? null : packetClass.getClass();
     }
 
     /**
@@ -37,6 +40,15 @@ public class PacketErrorEvent implements SessionEvent {
      */
     public Throwable getCause() {
         return this.cause;
+    }
+
+    /**
+     * Gets the packet class where the error occurred in, if it is known.
+     *
+     * @return the packet class related to this packet error
+     */
+    public Class<? extends Packet> getPacketClass() {
+        return this.packetClass;
     }
 
     /**

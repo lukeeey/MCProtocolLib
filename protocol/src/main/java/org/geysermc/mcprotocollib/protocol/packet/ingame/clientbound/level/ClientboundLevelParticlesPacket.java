@@ -16,6 +16,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.level.particle.ParticleType
 public class ClientboundLevelParticlesPacket implements MinecraftPacket {
     private final @NonNull Particle particle;
     private final boolean longDistance;
+    private final boolean alwaysShow;
     private final double x;
     private final double y;
     private final double z;
@@ -27,6 +28,7 @@ public class ClientboundLevelParticlesPacket implements MinecraftPacket {
 
     public ClientboundLevelParticlesPacket(ByteBuf in, MinecraftCodecHelper helper) {
         this.longDistance = in.readBoolean();
+        this.alwaysShow = in.readBoolean();
         this.x = in.readDouble();
         this.y = in.readDouble();
         this.z = in.readDouble();
@@ -42,6 +44,7 @@ public class ClientboundLevelParticlesPacket implements MinecraftPacket {
     @Override
     public void serialize(ByteBuf out, MinecraftCodecHelper helper) {
         out.writeBoolean(this.longDistance);
+        out.writeBoolean(this.alwaysShow);
         out.writeDouble(this.x);
         out.writeDouble(this.y);
         out.writeDouble(this.z);

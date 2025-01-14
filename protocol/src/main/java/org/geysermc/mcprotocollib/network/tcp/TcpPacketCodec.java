@@ -57,7 +57,7 @@ public class TcpPacketCodec extends MessageToMessageCodec<ByteBuf, Packet> {
         } catch (Throwable t) {
             log.debug(marker, "Error encoding packet", t);
 
-            PacketErrorEvent e = new PacketErrorEvent(this.session, t);
+            PacketErrorEvent e = new PacketErrorEvent(this.session, t, packet);
             this.session.callEvent(e);
             if (!e.shouldSuppress()) {
                 throw new EncoderException(t);
@@ -104,7 +104,7 @@ public class TcpPacketCodec extends MessageToMessageCodec<ByteBuf, Packet> {
             // Advance buffer to end to make sure remaining data in this packet is skipped.
             buf.readerIndex(buf.readerIndex() + buf.readableBytes());
 
-            PacketErrorEvent e = new PacketErrorEvent(this.session, t);
+            PacketErrorEvent e = new PacketErrorEvent(this.session, t, packet);
             this.session.callEvent(e);
             if (!e.shouldSuppress()) {
                 throw new DecoderException(t);

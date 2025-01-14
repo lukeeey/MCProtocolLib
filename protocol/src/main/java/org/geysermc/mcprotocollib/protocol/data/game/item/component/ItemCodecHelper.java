@@ -193,6 +193,21 @@ public class ItemCodecHelper extends MinecraftCodecHelper {
         buf.writeBoolean(modifiers.isShowInTooltip());
     }
 
+    public CustomModelData readCustomModelData(ByteBuf buf) {
+        List<Float> floats = this.readList(buf, ByteBuf::readFloat);
+        List<Boolean> flags = this.readList(buf, ByteBuf::readBoolean);
+        List<String> strings = this.readList(buf, this::readString);
+        List<Integer> colors = this.readList(buf, ByteBuf::readInt);
+        return new CustomModelData(floats, flags, strings, colors);
+    }
+
+    public void writeCustomModelData(ByteBuf buf, CustomModelData modelData) {
+        this.writeList(buf, modelData.floats(), ByteBuf::writeFloat);
+        this.writeList(buf, modelData.flags(), ByteBuf::writeBoolean);
+        this.writeList(buf, modelData.strings(), this::writeString);
+        this.writeList(buf, modelData.colors(), ByteBuf::writeInt);
+    }
+
     public DyedItemColor readDyedItemColor(ByteBuf buf) {
         return new DyedItemColor(buf.readInt(), buf.readBoolean());
     }
@@ -394,7 +409,6 @@ public class ItemCodecHelper extends MinecraftCodecHelper {
     public ArmorTrim.TrimMaterial readTrimMaterial(ByteBuf buf) {
         String assetName = this.readString(buf);
         int ingredientId = this.readVarInt(buf);
-        float itemModelIndex = buf.readFloat();
 
         Map<Key, String> overrideArmorMaterials = new HashMap<>();
         int overrideCount = this.readVarInt(buf);
@@ -403,16 +417,15 @@ public class ItemCodecHelper extends MinecraftCodecHelper {
         }
 
         Component description = this.readComponent(buf);
-        return new ArmorTrim.TrimMaterial(assetName, ingredientId, itemModelIndex, overrideArmorMaterials, description);
+        return new ArmorTrim.TrimMaterial(assetName, ingredientId, overrideArmorMaterials, description);
     }
 
     public void writeTrimMaterial(ByteBuf buf, ArmorTrim.TrimMaterial material) {
         this.writeString(buf, material.assetName());
         this.writeVarInt(buf, material.ingredientId());
-        buf.writeFloat(material.itemModelIndex());
 
-        this.writeVarInt(buf, material.overrideArmorMaterials().size());
-        for (Map.Entry<Key, String> entry : material.overrideArmorMaterials().entrySet()) {
+        this.writeVarInt(buf, material.overrideArmorAssets().size());
+        for (Map.Entry<Key, String> entry : material.overrideArmorAssets().entrySet()) {
             this.writeResourceLocation(buf, entry.getKey());
             this.writeString(buf, entry.getValue());
         }
