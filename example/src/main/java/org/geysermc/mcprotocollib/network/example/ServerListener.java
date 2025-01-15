@@ -21,7 +21,7 @@ public class ServerListener extends ServerAdapter {
 
     @Override
     public void serverBound(ServerBoundEvent event) {
-        log.info("SERVER Bound: {}:{}", event.getServer().getHost(), event.getServer().getPort());
+        log.info("SERVER Bound: {}", event.getServer().getBindAddress());
     }
 
     @Override
@@ -36,14 +36,14 @@ public class ServerListener extends ServerAdapter {
 
     @Override
     public void sessionAdded(SessionAddedEvent event) {
-        log.info("SERVER Session Added: {}:{}", event.getSession().getHost(), event.getSession().getPort());
+        log.info("SERVER Session Added: {}", event.getSession().getRemoteAddress());
         ((TestProtocol) event.getSession().getPacketProtocol()).setSecretKey(this.key);
         event.getSession().setEncryption(((TestProtocol) event.getSession().getPacketProtocol()).getEncryption());
     }
 
     @Override
     public void sessionRemoved(SessionRemovedEvent event) {
-        log.info("SERVER Session Removed: {}:{}", event.getSession().getHost(), event.getSession().getPort());
+        log.info("SERVER Session Removed: {}", event.getSession().getRemoteAddress());
         event.getServer().close(false);
     }
 }

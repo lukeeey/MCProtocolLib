@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.netty;
 
 import io.netty.channel.DefaultEventLoopGroup;
 import io.netty.channel.EventLoopGroup;

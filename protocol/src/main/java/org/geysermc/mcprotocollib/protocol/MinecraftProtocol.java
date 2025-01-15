@@ -7,6 +7,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.cloudburstmc.nbt.NbtMap;
 import org.cloudburstmc.nbt.NbtUtils;
 import org.geysermc.mcprotocollib.auth.GameProfile;
+import org.geysermc.mcprotocollib.network.BuiltinFlags;
 import org.geysermc.mcprotocollib.network.Server;
 import org.geysermc.mcprotocollib.network.Session;
 import org.geysermc.mcprotocollib.network.crypt.AESEncryption;
@@ -18,6 +19,7 @@ import org.geysermc.mcprotocollib.protocol.codec.MinecraftCodec;
 import org.geysermc.mcprotocollib.protocol.codec.MinecraftCodecHelper;
 import org.geysermc.mcprotocollib.protocol.codec.PacketCodec;
 import org.geysermc.mcprotocollib.protocol.data.ProtocolState;
+import org.geysermc.mcprotocollib.protocol.data.handshake.HandshakeIntent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +55,7 @@ public class MinecraftProtocol extends PacketProtocol {
     private ProtocolState outboundState;
     private PacketRegistry outboundStateRegistry;
 
-    private final ProtocolState targetState;
+    private final HandshakeIntent handshakeIntent;
 
     /**
      * The player's identity.
@@ -88,7 +90,7 @@ public class MinecraftProtocol extends PacketProtocol {
      */
     public MinecraftProtocol(PacketCodec codec) {
         this.codec = codec;
-        this.targetState = ProtocolState.STATUS;
+        this.handshakeIntent = HandshakeIntent.STATUS;
 
         resetStates();
     }
@@ -131,7 +133,7 @@ public class MinecraftProtocol extends PacketProtocol {
      */
     public MinecraftProtocol(@NonNull PacketCodec codec, @NonNull GameProfile profile, String accessToken) {
         this.codec = codec;
-        this.targetState = ProtocolState.LOGIN;
+        this.handshakeIntent = HandshakeIntent.LOGIN;
         this.profile = profile;
         this.accessToken = accessToken;
 
@@ -154,14 +156,17 @@ public class MinecraftProtocol extends PacketProtocol {
     }
 
     @Override
-    public void newClientSession(Session session, boolean transferring) {
+    public void newClientSession(Session session) {
         session.setFlag(MinecraftConstants.PROFILE_KEY, this.profile);
         session.setFlag(MinecraftConstants.ACCESS_TOKEN_KEY, this.accessToken);
 
         resetStates();
 
         if (this.useDefaultListeners) {
-            session.addListener(new ClientListener(this.targetState, transferring));
+            session.addListener(new ClientListener(
+                this.handshakeIntent == HandshakeIntent.LOGIN
+                    && session.getFlag(BuiltinFlags.CLIENT_TRANSFERRING, false) ? HandshakeIntent.TRANSFER : this.handshakeIntent)
+            );
         }
     }
 

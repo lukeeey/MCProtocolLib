@@ -60,6 +60,16 @@ public final class MinecraftConstants {
      */
     public static final Flag<Boolean> FOLLOW_TRANSFERS = new Flag<>("follow-transfers", Boolean.class);
 
+    /**
+     * Session flag where the host address is stored. Client only.
+     */
+    public static final Flag<String> CLIENT_HOST = new Flag<>("client-host", String.class);
+
+    /**
+     * Session flag where the port is stored. Client only.
+     */
+    public static final Flag<Integer> CLIENT_PORT = new Flag<>("client-port", Integer.class);
+
     // Server Key Constants
 
     /**

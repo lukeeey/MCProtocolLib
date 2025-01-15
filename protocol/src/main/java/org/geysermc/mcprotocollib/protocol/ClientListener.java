@@ -6,13 +6,15 @@ import lombok.SneakyThrows;
 import net.kyori.adventure.text.Component;
 import org.geysermc.mcprotocollib.auth.GameProfile;
 import org.geysermc.mcprotocollib.auth.SessionService;
+import org.geysermc.mcprotocollib.network.BuiltinFlags;
+import org.geysermc.mcprotocollib.network.ClientSession;
 import org.geysermc.mcprotocollib.network.Session;
 import org.geysermc.mcprotocollib.network.compression.CompressionConfig;
 import org.geysermc.mcprotocollib.network.compression.ZlibCompression;
 import org.geysermc.mcprotocollib.network.event.session.ConnectedEvent;
 import org.geysermc.mcprotocollib.network.event.session.SessionAdapter;
 import org.geysermc.mcprotocollib.network.packet.Packet;
-import org.geysermc.mcprotocollib.network.tcp.TcpClientSession;
+import org.geysermc.mcprotocollib.network.session.ClientNetworkSession;
 import org.geysermc.mcprotocollib.protocol.data.ProtocolState;
 import org.geysermc.mcprotocollib.protocol.data.UnexpectedEncryptionException;
 import org.geysermc.mcprotocollib.protocol.data.handshake.HandshakeIntent;
@@ -30,21 +32,22 @@ import org.geysermc.mcprotocollib.protocol.packet.configuration.serverbound.Serv
 import org.geysermc.mcprotocollib.protocol.packet.handshake.serverbound.ClientIntentionPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.ClientboundStartConfigurationPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.ServerboundConfigurationAcknowledgedPacket;
-import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginFinishedPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundHelloPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginCompressionPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginDisconnectPacket;
+import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginFinishedPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.serverbound.ServerboundHelloPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.serverbound.ServerboundKeyPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.serverbound.ServerboundLoginAcknowledgedPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ping.clientbound.ClientboundPongResponsePacket;
-import org.geysermc.mcprotocollib.protocol.packet.status.clientbound.ClientboundStatusResponsePacket;
 import org.geysermc.mcprotocollib.protocol.packet.ping.serverbound.ServerboundPingRequestPacket;
+import org.geysermc.mcprotocollib.protocol.packet.status.clientbound.ClientboundStatusResponsePacket;
 import org.geysermc.mcprotocollib.protocol.packet.status.serverbound.ServerboundStatusRequestPacket;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.Objects;
@@ -54,8 +57,7 @@ import java.util.Objects;
  */
 @AllArgsConstructor
 public class ClientListener extends SessionAdapter {
-    private final @NonNull ProtocolState targetState;
-    private final boolean transferring;
+    private final @NonNull HandshakeIntent handshakeIntent;
 
     @SneakyThrows
     @Override
@@ -135,10 +137,17 @@ public class ClientListener extends SessionAdapter {
                 session.switchOutboundState(() -> protocol.setOutboundState(ProtocolState.CONFIGURATION));
             } else if (packet instanceof ClientboundTransferPacket transferPacket) {
                 if (session.getFlag(MinecraftConstants.FOLLOW_TRANSFERS, true)) {
-                    TcpClientSession newSession = new TcpClientSession(transferPacket.getHost(), transferPacket.getPort(), session.getPacketProtocol());
+                    ClientNetworkSession newSession = new ClientNetworkSession(
+                        InetSocketAddress.createUnresolved(transferPacket.getHost(), transferPacket.getPort()),
+                        session.getPacketProtocol(),
+                        session.getPacketHandlerExecutor(),
+                        session.getLocalAddress(),
+                        ((ClientSession) session).getProxy()
+                    );
                     newSession.setFlags(session.getFlags());
+                    newSession.setFlag(BuiltinFlags.CLIENT_TRANSFERRING, true);
                     session.disconnect(Component.translatable("disconnect.transfer"));
-                    newSession.connect(true, true);
+                    newSession.connect(true);
                 }
             }
         } else if (protocol.getInboundState() == ProtocolState.CONFIGURATION) {
@@ -154,10 +163,17 @@ public class ClientListener extends SessionAdapter {
                 }
             } else if (packet instanceof ClientboundTransferPacket transferPacket) {
                 if (session.getFlag(MinecraftConstants.FOLLOW_TRANSFERS, true)) {
-                    TcpClientSession newSession = new TcpClientSession(transferPacket.getHost(), transferPacket.getPort(), session.getPacketProtocol());
+                    ClientNetworkSession newSession = new ClientNetworkSession(
+                        InetSocketAddress.createUnresolved(transferPacket.getHost(), transferPacket.getPort()),
+                        session.getPacketProtocol(),
+                        session.getPacketHandlerExecutor(),
+                        session.getLocalAddress(),
+                        ((ClientSession) session).getProxy()
+                    );
                     newSession.setFlags(session.getFlags());
+                    newSession.setFlag(BuiltinFlags.CLIENT_TRANSFERRING, true);
                     session.disconnect(Component.translatable("disconnect.transfer"));
-                    newSession.connect(true, true);
+                    newSession.connect(true);
                 }
             }
         }
@@ -167,16 +183,21 @@ public class ClientListener extends SessionAdapter {
     public void connected(ConnectedEvent event) {
         Session session = event.getSession();
         MinecraftProtocol protocol = (MinecraftProtocol) session.getPacketProtocol();
-        ClientIntentionPacket intention = new ClientIntentionPacket(protocol.getCodec().getProtocolVersion(), session.getHost(), session.getPort(), switch (targetState) {
-            case LOGIN -> transferring ? HandshakeIntent.TRANSFER : HandshakeIntent.LOGIN;
-            case STATUS -> HandshakeIntent.STATUS;
-            default -> throw new IllegalStateException("Unexpected value: " + targetState);
-        });
+        ClientIntentionPacket intention = new ClientIntentionPacket(
+            protocol.getCodec().getProtocolVersion(),
+            session.getFlagSupplied(MinecraftConstants.CLIENT_HOST, () -> ((InetSocketAddress) session.getRemoteAddress()).getHostString()),
+            session.getFlagSupplied(MinecraftConstants.CLIENT_PORT, () -> ((InetSocketAddress) session.getRemoteAddress()).getPort()),
+            handshakeIntent
+        );
 
-        session.switchInboundState(() -> protocol.setInboundState(this.targetState));
+        var targetState = switch (handshakeIntent) {
+            case LOGIN, TRANSFER -> ProtocolState.LOGIN;
+            case STATUS -> ProtocolState.STATUS;
+        };
+        session.switchInboundState(() -> protocol.setInboundState(targetState));
         session.send(intention);
-        session.switchOutboundState(() -> protocol.setOutboundState(this.targetState));
-        switch (this.targetState) {
+        session.switchOutboundState(() -> protocol.setOutboundState(targetState));
+        switch (targetState) {
             case LOGIN -> {
                 GameProfile profile = session.getFlag(MinecraftConstants.PROFILE_KEY);
                 session.send(new ServerboundHelloPacket(profile.getName(), profile.getId()));

@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.session;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
@@ -31,14 +31,14 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
-public abstract class TcpSession extends SimpleChannelInboundHandler<Packet> implements Session {
-    private static final Logger log = LoggerFactory.getLogger(TcpSession.class);
+public abstract class NetworkSession extends SimpleChannelInboundHandler<Packet> implements Session {
+    private static final Logger log = LoggerFactory.getLogger(NetworkSession.class);
 
-    protected String host;
-    protected int port;
-    private final PacketProtocol protocol;
-    private final Executor packetHandlerExecutor;
+    protected final SocketAddress remoteAddress;
+    protected final PacketProtocol protocol;
+    protected final Executor packetHandlerExecutor;
 
     private final Map<String, Object> flags = new HashMap<>();
     private final List<SessionListener> listeners = new CopyOnWriteArrayList<>();
@@ -46,35 +46,10 @@ public abstract class TcpSession extends SimpleChannelInboundHandler<Packet> imp
     private Channel channel;
     protected boolean disconnected = false;
 
-    public TcpSession(String host, int port, PacketProtocol protocol, Executor packetHandlerExecutor) {
-        this.host = host;
-        this.port = port;
+    public NetworkSession(SocketAddress remoteAddress, PacketProtocol protocol, Executor packetHandlerExecutor) {
+        this.remoteAddress = remoteAddress;
         this.protocol = protocol;
         this.packetHandlerExecutor = packetHandlerExecutor;
-    }
-
-    @Override
-    public void connect() {
-        this.connect(true);
-    }
-
-    @Override
-    public void connect(boolean wait) {
-        this.connect(wait, false);
-    }
-
-    @Override
-    public void connect(boolean wait, boolean transferring) {
-    }
-
-    @Override
-    public String getHost() {
-        return this.host;
-    }
-
-    @Override
-    public int getPort() {
-        return this.port;
     }
 
     @Override
@@ -84,7 +59,7 @@ public abstract class TcpSession extends SimpleChannelInboundHandler<Packet> imp
 
     @Override
     public SocketAddress getRemoteAddress() {
-        return this.channel != null ? this.channel.remoteAddress() : null;
+        return remoteAddress;
     }
 
     @Override
@@ -103,15 +78,10 @@ public abstract class TcpSession extends SimpleChannelInboundHandler<Packet> imp
     }
 
     @Override
-    public <T> T getFlag(Flag<T> flag) {
-        return this.getFlag(flag, null);
-    }
-
-    @Override
-    public <T> T getFlag(Flag<T> flag, T def) {
+    public <T> T getFlagSupplied(Flag<T> flag, Supplier<T> defSupplier) {
         Object value = this.flags.get(flag.key());
         if (value == null) {
-            return def;
+            return defSupplier.get();
         }
 
         try {
@@ -245,7 +215,7 @@ public abstract class TcpSession extends SimpleChannelInboundHandler<Packet> imp
 
         if (this.channel != null && this.channel.isOpen()) {
             this.callEvent(new DisconnectingEvent(this, reason, cause));
-            this.channel.flush().close().addListener((ChannelFutureListener) future -> callEvent(new DisconnectedEvent(TcpSession.this, reason, cause)));
+            this.channel.flush().close().addListener((ChannelFutureListener) future -> callEvent(new DisconnectedEvent(NetworkSession.this, reason, cause)));
         } else {
             this.callEvent(new DisconnectedEvent(this, reason, cause));
         }
@@ -261,6 +231,11 @@ public abstract class TcpSession extends SimpleChannelInboundHandler<Packet> imp
     @Override
     public Channel getChannel() {
         return this.channel;
+    }
+
+    @Override
+    public Executor getPacketHandlerExecutor() {
+        return this.packetHandlerExecutor;
     }
 
     @Override

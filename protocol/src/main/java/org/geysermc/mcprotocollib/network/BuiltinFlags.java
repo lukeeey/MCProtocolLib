@@ -14,6 +14,11 @@ public class BuiltinFlags {
     public static final Flag<InetSocketAddress> CLIENT_PROXIED_ADDRESS = new Flag<>("client-proxied-address", InetSocketAddress.class);
 
     /**
+     * Whether the current client is transferring.
+     */
+    public static final Flag<Boolean> CLIENT_TRANSFERRING = new Flag<>("transferring", Boolean.class);
+
+    /**
      * When set to false, an SRV record resolve is not attempted.
      */
     public static final Flag<Boolean> ATTEMPT_SRV_RESOLVE = new Flag<>("attempt-srv-resolve", Boolean.class);
@@ -34,7 +39,7 @@ public class BuiltinFlags {
      * Used by both the server and client.
      */
     public static final Flag<Integer> READ_TIMEOUT = new Flag<>("read-timeout", Integer.class);
-    
+
     /**
      * Write timeout in seconds.
      * Used by both the server and client.

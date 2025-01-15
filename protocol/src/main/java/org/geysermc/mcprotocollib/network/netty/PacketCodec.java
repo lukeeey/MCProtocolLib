@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -19,14 +19,14 @@ import org.slf4j.MarkerFactory;
 
 import java.util.List;
 
-public class TcpPacketCodec extends MessageToMessageCodec<ByteBuf, Packet> {
+public class PacketCodec extends MessageToMessageCodec<ByteBuf, Packet> {
     private static final Marker marker = MarkerFactory.getMarker("packet_logging");
-    private static final Logger log = LoggerFactory.getLogger(TcpPacketCodec.class);
+    private static final Logger log = LoggerFactory.getLogger(PacketCodec.class);
 
     private final Session session;
     private final boolean client;
 
-    public TcpPacketCodec(Session session, boolean client) {
+    public PacketCodec(Session session, boolean client) {
         this.session = session;
         this.client = client;
     }

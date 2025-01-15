@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.netty;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.flow.FlowControlHandler;
@@ -10,7 +10,7 @@ import io.netty.handler.flow.FlowControlHandler;
  * This can happen when the channel already read a packet, but the packet is not yet decoded.
  * This will halt all decoding until the channel is ready to process more packets.
  */
-public class TcpFlowControlHandler extends FlowControlHandler {
+public class AutoReadFlowControlHandler extends FlowControlHandler {
     @Override
     public void read(ChannelHandlerContext ctx) throws Exception {
         if (ctx.channel().config().isAutoRead()) {

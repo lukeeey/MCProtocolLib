@@ -2,7 +2,9 @@ package org.geysermc.mcprotocollib.network;
 
 import org.geysermc.mcprotocollib.network.event.server.ServerListener;
 import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
+import org.geysermc.mcprotocollib.network.server.AbstractServer;
 
+import java.net.SocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -12,18 +14,11 @@ import java.util.function.Supplier;
  */
 public interface Server {
     /**
-     * Gets the host the session is listening on.
+     * Gets the bind address the server is listening on.
      *
-     * @return The listening host.
+     * @return The listening bind address.
      */
-    String getHost();
-
-    /**
-     * Gets the port the session is listening on.
-     *
-     * @return The listening port.
-     */
-    int getPort();
+    SocketAddress getBindAddress();
 
     /**
      * Gets the packet protocol of the server.
@@ -62,7 +57,16 @@ public interface Server {
      * @return Value of the flag.
      * @throws IllegalStateException If the flag's value isn't of the required type.
      */
-    <T> T getGlobalFlag(Flag<T> flag);
+    default <T> T getGlobalFlag(Flag<T> flag) {
+        return getGlobalFlagSupplied(flag, () -> null);
+    }
+
+    /**
+     * @see #getGlobalFlagSupplied(Flag, Supplier)
+     */
+    default <T> T getGlobalFlag(Flag<T> flag, T def) {
+        return getGlobalFlagSupplied(flag, () -> def);
+    }
 
     /**
      * Gets the value of the given flag as an instance of the given type.
@@ -70,11 +74,11 @@ public interface Server {
      *
      * @param <T> Type of the flag.
      * @param flag Flag to check for.
-     * @param def Default value of the flag.
+     * @param defSupplier Default value supplier.
      * @return Value of the flag.
      * @throws IllegalStateException If the flag's value isn't of the required type.
      */
-    <T> T getGlobalFlag(Flag<T> flag, T def);
+    <T> T getGlobalFlagSupplied(Flag<T> flag, Supplier<T> defSupplier);
 
     /**
      * Sets the value of a flag. The flag will be used in sessions if a session does

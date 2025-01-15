@@ -9,52 +9,20 @@ import org.geysermc.mcprotocollib.network.compression.CompressionConfig;
 import org.geysermc.mcprotocollib.network.crypt.EncryptionConfig;
 import org.geysermc.mcprotocollib.network.event.session.SessionEvent;
 import org.geysermc.mcprotocollib.network.event.session.SessionListener;
+import org.geysermc.mcprotocollib.network.netty.FlushHandler;
 import org.geysermc.mcprotocollib.network.packet.Packet;
 import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
-import org.geysermc.mcprotocollib.network.tcp.FlushHandler;
 
 import java.net.SocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * A network session.
  */
 public interface Session {
-
-    /**
-     * Connects this session to its host and port.
-     */
-    void connect();
-
-    /**
-     * Connects this session to its host and port.
-     *
-     * @param wait Whether to wait for the connection to be established before returning.
-     */
-    void connect(boolean wait);
-
-    /**
-     * Connects this session to its host and port.
-     *
-     * @param wait Whether to wait for the connection to be established before returning.
-     * @param transferring Whether the session is a client being transferred.
-     */
-    void connect(boolean wait, boolean transferring);
-
-    /**
-     * Gets the host the session is connected to.
-     *
-     * @return The connected host.
-     */
-    String getHost();
-
-    /**
-     * Gets the port the session is connected to.
-     *
-     * @return The connected port.
-     */
-    int getPort();
 
     /**
      * Gets the local address of the session.
@@ -111,7 +79,16 @@ public interface Session {
      * @return Value of the flag.
      * @throws IllegalStateException If the flag's value isn't of the required type.
      */
-    <T> T getFlag(Flag<T> flag);
+    default <T> T getFlag(Flag<T> flag) {
+        return this.getFlagSupplied(flag, () -> null);
+    }
+
+    /**
+     * @see #getFlagSupplied(Flag, Supplier)
+     */
+    default <T> T getFlag(Flag<T> flag, T def) {
+        return this.getFlagSupplied(flag, () -> def);
+    }
 
     /**
      * Gets the value of the given flag as an instance of the given type. If this
@@ -120,11 +97,11 @@ public interface Session {
      *
      * @param <T> Type of the flag.
      * @param flag Flag to check for.
-     * @param def Default value of the flag.
+     * @param defSupplier Default value supplier.
      * @return Value of the flag.
      * @throws IllegalStateException If the flag's value isn't of the required type.
      */
-    <T> T getFlag(Flag<T> flag, T def);
+    <T> T getFlagSupplied(Flag<T> flag, Supplier<T> defSupplier);
 
     /**
      * Sets the value of a flag. This does not change a server's flags if this session
@@ -285,6 +262,13 @@ public interface Session {
      * @return The netty channel
      */
     Channel getChannel();
+
+    /**
+     * Returns the executor that handles packet handling.
+     *
+     * @return The packet handler executor
+     */
+    Executor getPacketHandlerExecutor();
 
     /**
      * Changes the inbound state of the session and then re-enables auto read.

@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -12,7 +12,7 @@ import org.geysermc.mcprotocollib.network.compression.CompressionConfig;
 import java.util.List;
 
 @RequiredArgsConstructor
-public class TcpPacketCompression extends MessageToMessageCodec<ByteBuf, ByteBuf> {
+public class PacketCompressionCodec extends MessageToMessageCodec<ByteBuf, ByteBuf> {
     private static final int MAX_UNCOMPRESSED_SIZE = 8 * 1024 * 1024; // 8MiB
     private final PacketCodecHelper helper;
 

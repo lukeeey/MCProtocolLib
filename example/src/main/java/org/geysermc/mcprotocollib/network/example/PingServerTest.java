@@ -1,14 +1,15 @@
 package org.geysermc.mcprotocollib.network.example;
 
+import org.geysermc.mcprotocollib.network.ClientSession;
 import org.geysermc.mcprotocollib.network.Server;
-import org.geysermc.mcprotocollib.network.Session;
-import org.geysermc.mcprotocollib.network.tcp.TcpClientSession;
-import org.geysermc.mcprotocollib.network.tcp.TcpServer;
+import org.geysermc.mcprotocollib.network.factory.ClientNetworkSessionFactory;
+import org.geysermc.mcprotocollib.network.server.NetworkServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import java.net.InetSocketAddress;
 import java.security.NoSuchAlgorithmException;
 
 public class PingServerTest {
@@ -25,11 +26,14 @@ public class PingServerTest {
             return;
         }
 
-        Server server = new TcpServer("127.0.0.1", 25565, TestProtocol::new);
+        Server server = new NetworkServer(new InetSocketAddress("127.0.0.1", 25565), TestProtocol::new);
         server.addListener(new ServerListener(key));
         server.bind();
 
-        Session client = new TcpClientSession("127.0.0.1", 25565, new TestProtocol(key));
+        ClientSession client = ClientNetworkSessionFactory.factory()
+            .setAddress("127.0.0.1", 25565)
+            .setProtocol(new TestProtocol(key))
+            .create();
         client.connect();
     }
 }

@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -11,7 +11,7 @@ import org.geysermc.mcprotocollib.network.crypt.EncryptionConfig;
 
 import java.util.List;
 
-public class TcpPacketEncryptor extends MessageToMessageCodec<ByteBuf, ByteBuf> {
+public class PacketEncryptorCodec extends MessageToMessageCodec<ByteBuf, ByteBuf> {
     @Override
     public void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
         EncryptionConfig config = ctx.channel().attr(NetworkConstants.ENCRYPTION_ATTRIBUTE_KEY).get();

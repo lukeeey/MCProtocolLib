@@ -1,4 +1,4 @@
-package org.geysermc.mcprotocollib.network.tcp;
+package org.geysermc.mcprotocollib.network.netty;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
@@ -9,7 +9,7 @@ import org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.Clientbound
 import java.util.ArrayList;
 import java.util.List;
 
-public class TcpBundlerUnpacker extends MessageToMessageDecoder<MinecraftPacket> {
+public class BundlerUnpackerDecoder extends MessageToMessageDecoder<MinecraftPacket> {
     private List<MinecraftPacket> currentPackets;
 
     @Override

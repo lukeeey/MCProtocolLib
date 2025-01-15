@@ -30,15 +30,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.util.function.Supplier;
 
 public class NettyHelper {
     private static final Logger log = LoggerFactory.getLogger(NettyHelper.class);
     private static final String IP_REGEX = "\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b";
-    
-    public static InetSocketAddress resolveAddress(Session session, EventLoop eventLoop, String host, int port) {
+
+    public static SocketAddress resolveAddress(Session session, Supplier<EventLoop> eventLoop, SocketAddress address) {
+        if (address instanceof InetSocketAddress inetAddress && inetAddress.isUnresolved()) {
+            return resolveAddress(session, eventLoop.get(), inetAddress.getHostString(), inetAddress.getPort());
+        }
+
+        return address;
+    }
+
+    public static SocketAddress resolveAddress(Session session, EventLoop eventLoop, String host, int port) {
         String name = session.getPacketProtocol().getSRVRecordPrefix() + "._tcp." + host;
         log.debug("Attempting SRV lookup for \"{}\".", name);
 
@@ -102,18 +113,51 @@ public class NettyHelper {
         channel.pipeline().addLast("proxy-protocol-packet-sender", new ChannelInboundHandlerAdapter() {
             @Override
             public void channelActive(ChannelHandlerContext ctx) throws Exception {
-                InetSocketAddress remoteAddress = (InetSocketAddress) ctx.channel().remoteAddress();
-                HAProxyProxiedProtocol proxiedProtocol = clientAddress.getAddress() instanceof Inet4Address ? HAProxyProxiedProtocol.TCP4 : HAProxyProxiedProtocol.TCP6;
+                HAProxyProxiedProtocol proxiedProtocol = getProxiedProtocol(clientAddress);
+
+                SocketAddress remoteAddress = ctx.channel().remoteAddress();
+                String destinationAddress;
+                int destinationPort;
+                if (remoteAddress instanceof InetSocketAddress inetRemoteAddress && getProxiedProtocol(inetRemoteAddress) == proxiedProtocol) {
+                    destinationAddress = inetRemoteAddress.getAddress().getHostAddress();
+                    destinationPort = inetRemoteAddress.getPort();
+                } else {
+                    // Fill in arbitrary values for the destination address and port if the remote address is not of the same type
+                    switch (proxiedProtocol) {
+                        case TCP4 -> {
+                            destinationAddress = "0.0.0.0";
+                            destinationPort = 0;
+                        }
+                        case TCP6 -> {
+                            destinationAddress = "0:0:0:0:0:0:0:0";
+                            destinationPort = 0;
+                        }
+                        default -> throw new UnsupportedOperationException("Unsupported proxied protocol: " + proxiedProtocol);
+                    }
+
+                    log.debug("Remote address {} is not of the same type as the client address {} - using arbitrary values for destination address and port", remoteAddress, clientAddress);
+                }
+
                 ctx.channel().writeAndFlush(new HAProxyMessage(
                     HAProxyProtocolVersion.V2, HAProxyCommand.PROXY, proxiedProtocol,
-                    clientAddress.getAddress().getHostAddress(), remoteAddress.getAddress().getHostAddress(),
-                    clientAddress.getPort(), remoteAddress.getPort()
+                    clientAddress.getAddress().getHostAddress(), destinationAddress,
+                    clientAddress.getPort(), destinationPort
                 )).addListener(future -> channel.pipeline().remove("proxy-protocol-encoder"));
                 ctx.pipeline().remove(this);
 
                 super.channelActive(ctx);
             }
         });
+    }
+
+    private static HAProxyProxiedProtocol getProxiedProtocol(InetSocketAddress socketAddress) {
+        if (socketAddress.getAddress() instanceof Inet4Address) {
+            return HAProxyProxiedProtocol.TCP4;
+        } else if (socketAddress.getAddress() instanceof Inet6Address) {
+            return HAProxyProxiedProtocol.TCP6;
+        } else {
+            return HAProxyProxiedProtocol.UNKNOWN;
+        }
     }
 
     public static void addProxy(ProxyInfo proxy, ChannelPipeline pipeline) {

@@ -1,6 +1,9 @@
-package org.geysermc.mcprotocollib.network;
+package org.geysermc.mcprotocollib.network.server;
 
 import net.kyori.adventure.text.Component;
+import org.geysermc.mcprotocollib.network.Flag;
+import org.geysermc.mcprotocollib.network.Server;
+import org.geysermc.mcprotocollib.network.Session;
 import org.geysermc.mcprotocollib.network.event.server.ServerBoundEvent;
 import org.geysermc.mcprotocollib.network.event.server.ServerClosedEvent;
 import org.geysermc.mcprotocollib.network.event.server.ServerClosingEvent;
@@ -10,6 +13,7 @@ import org.geysermc.mcprotocollib.network.event.server.SessionAddedEvent;
 import org.geysermc.mcprotocollib.network.event.server.SessionRemovedEvent;
 import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
 
+import java.net.SocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,8 +22,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public abstract class AbstractServer implements Server {
-    private final String host;
-    private final int port;
+    private final SocketAddress bindAddress;
     private final Supplier<? extends PacketProtocol> protocolSupplier;
 
     private final List<Session> sessions = new ArrayList<>();
@@ -27,20 +30,14 @@ public abstract class AbstractServer implements Server {
     private final Map<String, Object> flags = new HashMap<>();
     private final List<ServerListener> listeners = new ArrayList<>();
 
-    public AbstractServer(String host, int port, Supplier<? extends PacketProtocol> protocolSupplier) {
-        this.host = host;
-        this.port = port;
+    public AbstractServer(SocketAddress bindAddress, Supplier<? extends PacketProtocol> protocolSupplier) {
+        this.bindAddress = bindAddress;
         this.protocolSupplier = protocolSupplier;
     }
 
     @Override
-    public String getHost() {
-        return this.host;
-    }
-
-    @Override
-    public int getPort() {
-        return this.port;
+    public SocketAddress getBindAddress() {
+        return this.bindAddress;
     }
 
     @Override
@@ -63,15 +60,10 @@ public abstract class AbstractServer implements Server {
     }
 
     @Override
-    public <T> T getGlobalFlag(Flag<T> flag) {
-        return this.getGlobalFlag(flag, null);
-    }
-
-    @Override
-    public <T> T getGlobalFlag(Flag<T> flag, T def) {
+    public <T> T getGlobalFlagSupplied(Flag<T> flag, Supplier<T> defSupplier) {
         Object value = this.flags.get(flag.key());
         if (value == null) {
-            return def;
+            return defSupplier.get();
         }
 
         try {
