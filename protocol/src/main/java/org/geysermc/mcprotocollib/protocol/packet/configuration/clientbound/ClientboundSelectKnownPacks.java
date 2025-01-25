@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.With;
 import org.geysermc.mcprotocollib.protocol.codec.MinecraftPacket;
-import org.geysermc.mcprotocollib.protocol.codec.MinecraftTypes;
 import org.geysermc.mcprotocollib.protocol.data.game.KnownPack;
 
 import java.util.List;
@@ -17,16 +16,12 @@ public class ClientboundSelectKnownPacks implements MinecraftPacket {
     private final List<KnownPack> knownPacks;
 
     public ClientboundSelectKnownPacks(ByteBuf in) {
-        this.knownPacks = MinecraftTypes.readList(in, buf -> new KnownPack(MinecraftTypes.readString(buf), MinecraftTypes.readString(buf), MinecraftTypes.readString(buf)));
+        this.knownPacks = KnownPack.NETWORK_CODEC.list().read(in);
     }
 
     @Override
     public void serialize(ByteBuf out) {
-        MinecraftTypes.writeList(out, this.knownPacks, (buf, entry) -> {
-            MinecraftTypes.writeString(buf, entry.getNamespace());
-            MinecraftTypes.writeString(buf, entry.getId());
-            MinecraftTypes.writeString(buf, entry.getVersion());
-        });
+        KnownPack.NETWORK_CODEC.list().write(out, knownPacks);
     }
 
     @Override

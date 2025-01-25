@@ -104,6 +104,9 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -120,6 +123,59 @@ import java.util.function.ToIntFunction;
 
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public class MinecraftTypes {
+    public static final NetworkCodec<Boolean> BOOLEAN = NetworkCodec.of(
+        ByteBuf::writeBoolean,
+        ByteBuf::readBoolean
+    );
+    public static final NetworkCodec<String> STRING = NetworkCodec.of(
+        MinecraftTypes::writeString,
+        MinecraftTypes::readString
+    );
+    public static final NetworkCodec<Integer> VAR_INT = NetworkCodec.of(
+        MinecraftTypes::writeVarInt,
+        MinecraftTypes::readVarInt
+    );
+    public static final NetworkCodec<Long> VAR_LONG = NetworkCodec.of(
+        MinecraftTypes::writeVarLong,
+        MinecraftTypes::readVarLong
+    );
+    public static final NetworkCodec<UUID> UUID = NetworkCodec.of(
+        MinecraftTypes::writeUUID,
+        MinecraftTypes::readUUID
+    );
+    public static final NetworkCodec<byte[]> BYTE_ARRAY = NetworkCodec.of(
+        MinecraftTypes::writeByteArray,
+        MinecraftTypes::readByteArray
+    );
+    public static final NetworkCodec<byte[]> GREEDY_BYTE_ARRAY = NetworkCodec.of(
+        ByteBuf::writeBytes,
+        buf -> MinecraftTypes.readByteArray(buf, ByteBuf::readableBytes)
+    );
+    public static final NetworkCodec<long[]> LONG_ARRAY = NetworkCodec.of(
+        MinecraftTypes::writeLongArray,
+        MinecraftTypes::readLongArray
+    );
+    public static final NetworkCodec<NbtMap> COMPOUND_TAG = NetworkCodec.of(
+        MinecraftTypes::writeAnyTag,
+        MinecraftTypes::readCompoundTag
+    );
+    public static final NetworkCodec<Component> COMPONENT = NetworkCodec.of(
+        MinecraftTypes::writeComponent,
+        MinecraftTypes::readComponent
+    );
+    public static final NetworkCodec<PublicKey> PUBLIC_KEY = BYTE_ARRAY.map(key -> {
+        try {
+            return key.getEncoded();
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not encode public key", e);
+        }
+    }, bytes -> {
+        try {
+            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(bytes));
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Could not decode public key", e);
+        }
+    });
     private static final int POSITION_X_SIZE = 38;
     private static final int POSITION_Y_SIZE = 12;
     private static final int POSITION_Z_SIZE = 38;
