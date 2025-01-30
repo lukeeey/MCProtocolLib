@@ -9,8 +9,8 @@ import org.geysermc.mcprotocollib.network.crypt.AESEncryption;
 import org.geysermc.mcprotocollib.network.crypt.EncryptionConfig;
 import org.geysermc.mcprotocollib.network.packet.DefaultPacketHeader;
 import org.geysermc.mcprotocollib.network.packet.PacketHeader;
-import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
 import org.geysermc.mcprotocollib.network.packet.PacketRegistry;
+import org.geysermc.mcprotocollib.protocol.MinecraftProtocol;
 import org.geysermc.mcprotocollib.protocol.codec.MinecraftTypes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 import javax.crypto.SecretKey;
 import java.security.GeneralSecurityException;
 
-public class TestProtocol extends PacketProtocol {
+public class TestProtocol extends MinecraftProtocol {
     private static final Logger log = LoggerFactory.getLogger(TestProtocol.class);
     private final PacketHeader header = new DefaultPacketHeader();
     private final PacketRegistry registry = new PacketRegistry();

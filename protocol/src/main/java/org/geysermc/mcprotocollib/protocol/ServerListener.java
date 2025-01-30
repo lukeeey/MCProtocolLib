@@ -11,7 +11,6 @@ import org.geysermc.mcprotocollib.network.Session;
 import org.geysermc.mcprotocollib.network.compression.CompressionConfig;
 import org.geysermc.mcprotocollib.network.compression.ZlibCompression;
 import org.geysermc.mcprotocollib.network.event.session.ConnectedEvent;
-import org.geysermc.mcprotocollib.network.event.session.DisconnectingEvent;
 import org.geysermc.mcprotocollib.network.event.session.SessionAdapter;
 import org.geysermc.mcprotocollib.network.packet.Packet;
 import org.geysermc.mcprotocollib.protocol.data.ProtocolState;
@@ -20,7 +19,6 @@ import org.geysermc.mcprotocollib.protocol.data.status.PlayerInfo;
 import org.geysermc.mcprotocollib.protocol.data.status.ServerStatusInfo;
 import org.geysermc.mcprotocollib.protocol.data.status.VersionInfo;
 import org.geysermc.mcprotocollib.protocol.data.status.handler.ServerInfoBuilder;
-import org.geysermc.mcprotocollib.protocol.packet.common.clientbound.ClientboundDisconnectPacket;
 import org.geysermc.mcprotocollib.protocol.packet.common.clientbound.ClientboundKeepAlivePacket;
 import org.geysermc.mcprotocollib.protocol.packet.common.serverbound.ServerboundKeepAlivePacket;
 import org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound.ClientboundFinishConfigurationPacket;
@@ -28,16 +26,15 @@ import org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound.Clie
 import org.geysermc.mcprotocollib.protocol.packet.configuration.serverbound.ServerboundFinishConfigurationPacket;
 import org.geysermc.mcprotocollib.protocol.packet.handshake.serverbound.ClientIntentionPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.ServerboundConfigurationAcknowledgedPacket;
-import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginFinishedPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundHelloPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginCompressionPacket;
-import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginDisconnectPacket;
+import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginFinishedPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.serverbound.ServerboundHelloPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.serverbound.ServerboundKeyPacket;
 import org.geysermc.mcprotocollib.protocol.packet.login.serverbound.ServerboundLoginAcknowledgedPacket;
 import org.geysermc.mcprotocollib.protocol.packet.ping.clientbound.ClientboundPongResponsePacket;
-import org.geysermc.mcprotocollib.protocol.packet.status.clientbound.ClientboundStatusResponsePacket;
 import org.geysermc.mcprotocollib.protocol.packet.ping.serverbound.ServerboundPingRequestPacket;
+import org.geysermc.mcprotocollib.protocol.packet.status.clientbound.ClientboundStatusResponsePacket;
 import org.geysermc.mcprotocollib.protocol.packet.status.serverbound.ServerboundStatusRequestPacket;
 
 import javax.crypto.SecretKey;
@@ -95,13 +92,13 @@ public class ServerListener extends SessionAdapter {
 
     @Override
     public void packetReceived(Session session, Packet packet) {
-        MinecraftProtocol protocol = (MinecraftProtocol) session.getPacketProtocol();
+        MinecraftProtocol protocol = session.getPacketProtocol();
         if (protocol.getInboundState() == ProtocolState.HANDSHAKE) {
             if (packet instanceof ClientIntentionPacket intentionPacket) {
                 switch (intentionPacket.getIntent()) {
                     case STATUS -> {
-                        protocol.setOutboundState(ProtocolState.STATUS);
-                        session.switchInboundState(() -> protocol.setInboundState(ProtocolState.STATUS));
+                        session.switchOutboundState(ProtocolState.STATUS);
+                        session.switchInboundState(ProtocolState.STATUS);
                     }
                     case TRANSFER -> beginLogin(session, protocol, intentionPacket, true);
                     case LOGIN -> beginLogin(session, protocol, intentionPacket, false);
@@ -128,8 +125,8 @@ public class ServerListener extends SessionAdapter {
                 session.setEncryption(protocol.createEncryption(key));
                 new Thread(() -> authenticate(session, session.getFlag(MinecraftConstants.SHOULD_AUTHENTICATE, true), key)).start();
             } else if (packet instanceof ServerboundLoginAcknowledgedPacket) {
-                protocol.setOutboundState(ProtocolState.CONFIGURATION);
-                session.switchInboundState(() -> protocol.setInboundState(ProtocolState.CONFIGURATION));
+                session.switchOutboundState(ProtocolState.CONFIGURATION);
+                session.switchInboundState(ProtocolState.CONFIGURATION);
                 keepAliveState = new KeepAliveState();
                 if (session.getFlag(MinecraftConstants.AUTOMATIC_KEEP_ALIVE_MANAGEMENT, true)) {
                     // If keepalive state is null, lets assume there is no keepalive thread yet
@@ -161,11 +158,11 @@ public class ServerListener extends SessionAdapter {
                 ServerInfoBuilder builder = session.getFlag(MinecraftConstants.SERVER_INFO_BUILDER_KEY);
                 if (builder == null) {
                     builder = $ -> new ServerStatusInfo(
-                            Component.text("A Minecraft Server"),
-                            new PlayerInfo(0, 20, new ArrayList<>()),
-                            new VersionInfo(protocol.getCodec().getMinecraftVersion(), protocol.getCodec().getProtocolVersion()),
-                            null,
-                            false
+                        Component.text("A Minecraft Server"),
+                        new PlayerInfo(0, 20, new ArrayList<>()),
+                        new VersionInfo(protocol.getCodec().getMinecraftVersion(), protocol.getCodec().getProtocolVersion()),
+                        null,
+                        false
                     );
                 }
 
@@ -181,7 +178,7 @@ public class ServerListener extends SessionAdapter {
                 // The developer who sends ClientboundStartConfigurationPacket needs to setOutboundState to CONFIGURATION
                 // after sending the packet. We can't do it in this class because it needs to be a method call right after it was sent.
                 // Using nettys event loop to change outgoing state may cause differences to vanilla.
-                session.switchInboundState(() -> protocol.setInboundState(ProtocolState.CONFIGURATION));
+                session.switchInboundState(ProtocolState.CONFIGURATION);
                 keepAliveState = new KeepAliveState();
             } else if (packet instanceof ServerboundPingRequestPacket pingRequestPacket) {
                 session.send(new ClientboundPongResponsePacket(pingRequestPacket.getPingTime()));
@@ -191,8 +188,8 @@ public class ServerListener extends SessionAdapter {
             if (packet instanceof ServerboundKeepAlivePacket keepAlivePacket) {
                 handleKeepAlive(session, keepAlivePacket);
             } else if (packet instanceof ServerboundFinishConfigurationPacket) {
-                protocol.setOutboundState(ProtocolState.GAME);
-                session.switchInboundState(() -> protocol.setInboundState(ProtocolState.GAME));
+                session.switchOutboundState(ProtocolState.GAME);
+                session.switchInboundState(ProtocolState.GAME);
                 keepAliveState = new KeepAliveState();
                 ServerLoginHandler handler = session.getFlag(MinecraftConstants.SERVER_LOGIN_HANDLER_KEY);
                 if (handler != null) {
@@ -216,7 +213,7 @@ public class ServerListener extends SessionAdapter {
 
     private void beginLogin(Session session, MinecraftProtocol protocol, ClientIntentionPacket packet, boolean transferred) {
         isTransfer = transferred;
-        protocol.setOutboundState(ProtocolState.LOGIN);
+        session.switchOutboundState(ProtocolState.LOGIN);
         if (transferred && !session.getFlag(MinecraftConstants.ACCEPT_TRANSFERS_KEY)) {
             session.disconnect(Component.translatable("multiplayer.disconnect.transfers_disabled"));
         } else if (packet.getProtocolVersion() > protocol.getCodec().getProtocolVersion()) {
@@ -224,18 +221,7 @@ public class ServerListener extends SessionAdapter {
         } else if (packet.getProtocolVersion() < protocol.getCodec().getProtocolVersion()) {
             session.disconnect(Component.translatable("multiplayer.disconnect.outdated_client", Component.text(protocol.getCodec().getMinecraftVersion())));
         } else {
-            session.switchInboundState(() -> protocol.setInboundState(ProtocolState.LOGIN));
-        }
-    }
-
-    @Override
-    public void disconnecting(DisconnectingEvent event) {
-        Session session = event.getSession();
-        MinecraftProtocol protocol = (MinecraftProtocol) session.getPacketProtocol();
-        if (protocol.getOutboundState() == ProtocolState.LOGIN) {
-            session.send(new ClientboundLoginDisconnectPacket(event.getReason()));
-        } else if (protocol.getOutboundState() == ProtocolState.GAME) {
-            session.send(new ClientboundDisconnectPacket(event.getReason()));
+            session.switchInboundState(ProtocolState.LOGIN);
         }
     }
 

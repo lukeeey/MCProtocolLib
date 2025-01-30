@@ -34,11 +34,11 @@ public class ServerSessionListener extends SessionAdapter {
 
     @Override
     public void disconnecting(DisconnectingEvent event) {
-        log.info("SERVER Disconnecting: {}", event.getReason());
+        log.info("SERVER Disconnecting: {}", event.getDetails().reason());
     }
 
     @Override
     public void disconnected(DisconnectedEvent event) {
-        log.info("SERVER Disconnected: {}", event.getReason());
+        log.info("SERVER Disconnected: {}", event.getDetails().reason());
     }
 }

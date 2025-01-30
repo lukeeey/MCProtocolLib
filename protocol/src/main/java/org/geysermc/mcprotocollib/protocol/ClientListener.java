@@ -62,7 +62,7 @@ public class ClientListener extends SessionAdapter {
     @SneakyThrows
     @Override
     public void packetReceived(Session session, Packet packet) {
-        MinecraftProtocol protocol = (MinecraftProtocol) session.getPacketProtocol();
+        MinecraftProtocol protocol = session.getPacketProtocol();
         if (protocol.getInboundState() == ProtocolState.LOGIN) {
             if (packet instanceof ClientboundHelloPacket helloPacket) {
                 GameProfile profile = session.getFlag(MinecraftConstants.PROFILE_KEY);
@@ -97,9 +97,9 @@ public class ClientListener extends SessionAdapter {
                 session.send(new ServerboundKeyPacket(helloPacket.getPublicKey(), key, helloPacket.getChallenge()),
                     () -> session.setEncryption(protocol.createEncryption(key)));
             } else if (packet instanceof ClientboundLoginFinishedPacket) {
-                session.switchInboundState(() -> protocol.setInboundState(ProtocolState.CONFIGURATION));
+                session.switchInboundState(ProtocolState.CONFIGURATION);
                 session.send(new ServerboundLoginAcknowledgedPacket());
-                session.switchOutboundState(() -> protocol.setOutboundState(ProtocolState.CONFIGURATION));
+                session.switchOutboundState(ProtocolState.CONFIGURATION);
             } else if (packet instanceof ClientboundLoginDisconnectPacket loginDisconnectPacket) {
                 session.disconnect(loginDisconnectPacket.getReason());
             } else if (packet instanceof ClientboundLoginCompressionPacket loginCompressionPacket) {
@@ -132,9 +132,9 @@ public class ClientListener extends SessionAdapter {
             } else if (packet instanceof ClientboundDisconnectPacket disconnectPacket) {
                 session.disconnect(disconnectPacket.getReason());
             } else if (packet instanceof ClientboundStartConfigurationPacket) {
-                session.switchInboundState(() -> protocol.setInboundState(ProtocolState.CONFIGURATION));
+                session.switchInboundState(ProtocolState.CONFIGURATION);
                 session.send(new ServerboundConfigurationAcknowledgedPacket());
-                session.switchOutboundState(() -> protocol.setOutboundState(ProtocolState.CONFIGURATION));
+                session.switchOutboundState(ProtocolState.CONFIGURATION);
             } else if (packet instanceof ClientboundTransferPacket transferPacket) {
                 if (session.getFlag(MinecraftConstants.FOLLOW_TRANSFERS, true)) {
                     ClientNetworkSession newSession = new ClientNetworkSession(
@@ -154,16 +154,16 @@ public class ClientListener extends SessionAdapter {
             if (packet instanceof ClientboundKeepAlivePacket keepAlivePacket && session.getFlag(MinecraftConstants.AUTOMATIC_KEEP_ALIVE_MANAGEMENT, true)) {
                 session.send(new ServerboundKeepAlivePacket(keepAlivePacket.getPingId()));
             } else if (packet instanceof ClientboundFinishConfigurationPacket) {
-                session.switchInboundState(() -> protocol.setInboundState(ProtocolState.GAME));
+                session.switchInboundState(ProtocolState.GAME);
                 session.send(new ServerboundFinishConfigurationPacket());
-                session.switchOutboundState(() -> protocol.setOutboundState(ProtocolState.GAME));
+                session.switchOutboundState(ProtocolState.GAME);
             } else if (packet instanceof ClientboundSelectKnownPacks) {
                 if (session.getFlag(MinecraftConstants.SEND_BLANK_KNOWN_PACKS_RESPONSE, true)) {
                     session.send(new ServerboundSelectKnownPacks(Collections.emptyList()));
                 }
             } else if (packet instanceof ClientboundDisconnectPacket disconnectPacket) {
                 session.disconnect(disconnectPacket.getReason());
-            }else if (packet instanceof ClientboundTransferPacket transferPacket) {
+            } else if (packet instanceof ClientboundTransferPacket transferPacket) {
                 if (session.getFlag(MinecraftConstants.FOLLOW_TRANSFERS, true)) {
                     ClientNetworkSession newSession = new ClientNetworkSession(
                         InetSocketAddress.createUnresolved(transferPacket.getHost(), transferPacket.getPort()),
@@ -184,7 +184,7 @@ public class ClientListener extends SessionAdapter {
     @Override
     public void connected(ConnectedEvent event) {
         Session session = event.getSession();
-        MinecraftProtocol protocol = (MinecraftProtocol) session.getPacketProtocol();
+        MinecraftProtocol protocol = session.getPacketProtocol();
         ClientIntentionPacket intention = new ClientIntentionPacket(
             protocol.getCodec().getProtocolVersion(),
             session.getFlagSupplied(MinecraftConstants.CLIENT_HOST, () -> ((InetSocketAddress) session.getRemoteAddress()).getHostString()),
@@ -196,9 +196,9 @@ public class ClientListener extends SessionAdapter {
             case LOGIN, TRANSFER -> ProtocolState.LOGIN;
             case STATUS -> ProtocolState.STATUS;
         };
-        session.switchInboundState(() -> protocol.setInboundState(targetState));
+        session.switchInboundState(targetState);
         session.send(intention);
-        session.switchOutboundState(() -> protocol.setOutboundState(targetState));
+        session.switchOutboundState(targetState);
         switch (targetState) {
             case LOGIN -> {
                 GameProfile profile = session.getFlag(MinecraftConstants.PROFILE_KEY);

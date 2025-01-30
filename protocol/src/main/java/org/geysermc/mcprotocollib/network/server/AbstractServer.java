@@ -12,6 +12,7 @@ import org.geysermc.mcprotocollib.network.event.server.ServerListener;
 import org.geysermc.mcprotocollib.network.event.server.SessionAddedEvent;
 import org.geysermc.mcprotocollib.network.event.server.SessionRemovedEvent;
 import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
+import org.geysermc.mcprotocollib.protocol.MinecraftProtocol;
 
 import java.net.SocketAddress;
 import java.util.ArrayList;
@@ -23,14 +24,14 @@ import java.util.function.Supplier;
 
 public abstract class AbstractServer implements Server {
     private final SocketAddress bindAddress;
-    private final Supplier<? extends PacketProtocol> protocolSupplier;
+    private final Supplier<? extends MinecraftProtocol> protocolSupplier;
 
     private final List<Session> sessions = new ArrayList<>();
 
     private final Map<String, Object> flags = new HashMap<>();
     private final List<ServerListener> listeners = new ArrayList<>();
 
-    public AbstractServer(SocketAddress bindAddress, Supplier<? extends PacketProtocol> protocolSupplier) {
+    public AbstractServer(SocketAddress bindAddress, Supplier<? extends MinecraftProtocol> protocolSupplier) {
         this.bindAddress = bindAddress;
         this.protocolSupplier = protocolSupplier;
     }
@@ -45,7 +46,7 @@ public abstract class AbstractServer implements Server {
         return this.protocolSupplier;
     }
 
-    protected PacketProtocol createPacketProtocol() {
+    protected MinecraftProtocol createPacketProtocol() {
         return this.protocolSupplier.get();
     }
 

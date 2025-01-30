@@ -8,9 +8,10 @@ import org.geysermc.mcprotocollib.network.compression.CompressionConfig;
 import org.geysermc.mcprotocollib.network.crypt.EncryptionConfig;
 import org.geysermc.mcprotocollib.network.event.session.SessionEvent;
 import org.geysermc.mcprotocollib.network.event.session.SessionListener;
-import org.geysermc.mcprotocollib.network.netty.FlushHandler;
+import org.geysermc.mcprotocollib.network.helper.DisconnectionDetails;
 import org.geysermc.mcprotocollib.network.packet.Packet;
-import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
+import org.geysermc.mcprotocollib.protocol.MinecraftProtocol;
+import org.geysermc.mcprotocollib.protocol.data.ProtocolState;
 
 import java.net.SocketAddress;
 import java.util.List;
@@ -42,7 +43,7 @@ public interface Session {
      *
      * @return The session's packet protocol.
      */
-    PacketProtocol getPacketProtocol();
+    MinecraftProtocol getPacketProtocol();
 
     /**
      * Gets this session's set flags. If this session belongs to a server, the server's
@@ -204,7 +205,7 @@ public interface Session {
      * @see #disconnect(String, Throwable)
      */
     default void disconnect(@NonNull String reason) {
-        this.disconnect(reason, null);
+        this.disconnect(new DisconnectionDetails(Component.text(reason)));
     }
 
     /**
@@ -217,7 +218,7 @@ public interface Session {
      * @see #disconnect(Component, Throwable)
      */
     default void disconnect(@NonNull String reason, @Nullable Throwable cause) {
-        this.disconnect(Component.text(reason), cause);
+        this.disconnect(new DisconnectionDetails(Component.text(reason), cause));
     }
 
     /**
@@ -226,7 +227,7 @@ public interface Session {
      * @param reason Reason for disconnecting.
      */
     default void disconnect(@NonNull Component reason) {
-        this.disconnect(reason, null);
+        this.disconnect(new DisconnectionDetails(reason));
     }
 
     /**
@@ -235,13 +236,22 @@ public interface Session {
      * @param reason Reason for disconnecting.
      * @param cause Throwable responsible for disconnecting.
      */
-    void disconnect(@NonNull Component reason, @Nullable Throwable cause);
+    default void disconnect(@NonNull Component reason, @Nullable Throwable cause) {
+        this.disconnect(new DisconnectionDetails(reason, cause));
+    }
+
+    /**
+     * Disconnects the session.
+     *
+     * @param disconnectionDetails Info about disconnect.
+     */
+    void disconnect(@NonNull DisconnectionDetails disconnectionDetails);
 
     /**
      * Auto read in netty means that the server is automatically reading from the channel.
      * Turning it off means that we won't get more packets being decoded until we turn it back on.
      * We use this to hold off on reading packets until we are ready to process them.
-     * For example this is used for switching inbound states with {@link #switchInboundState(Runnable)}.
+     * For example this is used for switching inbound states with {@link #switchInboundState(ProtocolState)}.
      *
      * @param autoRead Whether to enable auto read.
      *                 Default is true.
@@ -266,25 +276,15 @@ public interface Session {
      * Changes the inbound state of the session and then re-enables auto read.
      * This is used after a terminal packet was handled and the session is ready to receive more packets in the new state.
      *
-     * @param switcher The runnable that switches the inbound state.
+     * @param state The state to switch to.
      */
-    default void switchInboundState(Runnable switcher) {
-        switcher.run();
-
-        // We switched to the new inbound state
-        // we can start reading again
-        setAutoRead(true);
-    }
+    void switchInboundState(ProtocolState state);
 
     /**
      * Flushes all packets that are due to be sent and changes the outbound state of the session.
      * This makes sure no other threads have scheduled packets to be sent.
      *
-     * @param switcher The runnable that switches the outbound state.
+     * @param state The state to switch to.
      */
-    default void switchOutboundState(Runnable switcher) {
-        getChannel().writeAndFlush(FlushHandler.FLUSH_PACKET).syncUninterruptibly();
-
-        switcher.run();
-    }
+    void switchOutboundState(ProtocolState state);
 }

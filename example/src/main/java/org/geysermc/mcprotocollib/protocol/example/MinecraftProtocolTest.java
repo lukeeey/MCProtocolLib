@@ -230,7 +230,7 @@ public class MinecraftProtocolTest {
 
             @Override
             public void disconnected(DisconnectedEvent event) {
-                log.info("Disconnected: {}", event.getReason(), event.getCause());
+                log.info("Disconnected: {}", event.getDetails().reason(), event.getDetails().cause());
             }
         });
 

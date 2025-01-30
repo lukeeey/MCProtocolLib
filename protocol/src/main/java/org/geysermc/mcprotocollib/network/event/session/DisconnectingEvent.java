@@ -1,27 +1,24 @@
 package org.geysermc.mcprotocollib.network.event.session;
 
-import net.kyori.adventure.text.Component;
 import org.geysermc.mcprotocollib.network.Session;
+import org.geysermc.mcprotocollib.network.helper.DisconnectionDetails;
 
 /**
  * Called when the session is about to disconnect.
  */
 public class DisconnectingEvent implements SessionEvent {
     private final Session session;
-    private final Component reason;
-    private final Throwable cause;
+    private final DisconnectionDetails disconnectionDetails;
 
     /**
      * Creates a new DisconnectingEvent instance.
      *
      * @param session Session being disconnected.
-     * @param reason Reason for the session to disconnect.
-     * @param cause Throwable that caused the disconnect.
+     * @param disconnectionDetails Reason for the disconnection.
      */
-    public DisconnectingEvent(Session session, Component reason, Throwable cause) {
+    public DisconnectingEvent(Session session, DisconnectionDetails disconnectionDetails) {
         this.session = session;
-        this.reason = reason;
-        this.cause = cause;
+        this.disconnectionDetails = disconnectionDetails;
     }
 
     /**
@@ -38,17 +35,8 @@ public class DisconnectingEvent implements SessionEvent {
      *
      * @return The event's reason.
      */
-    public Component getReason() {
-        return this.reason;
-    }
-
-    /**
-     * Gets the Throwable responsible for the session disconnecting.
-     *
-     * @return The Throwable responsible for the disconnect, or null if the disconnect was not caused by a Throwable.
-     */
-    public Throwable getCause() {
-        return this.cause;
+    public DisconnectionDetails getDetails() {
+        return this.disconnectionDetails;
     }
 
     @Override

@@ -34,14 +34,12 @@ public class PacketSendingEvent implements SessionEvent {
     /**
      * Gets the packet involved in this event as the required type.
      *
-     * @param <T> Type of the packet.
      * @return The event's packet as the required type.
      * @throws IllegalStateException If the packet's value isn't of the required type.
      */
-    @SuppressWarnings("unchecked")
-    public <T extends Packet> T getPacket() {
+    public Packet getPacket() {
         try {
-            return (T) this.packet;
+            return this.packet;
         } catch (ClassCastException e) {
             throw new IllegalStateException("Tried to get packet as the wrong type. Actual type: " + this.packet.getClass().getName());
         }

@@ -143,7 +143,7 @@ public class MinecraftProtocolTest {
     private static class DisconnectListener extends SessionAdapter {
         @Override
         public void disconnected(DisconnectedEvent event) {
-            log.error("Disconnected: {}", event.getReason(), event.getCause());
+            log.error("Disconnected: {}", event.getDetails().reason(), event.getDetails().cause());
         }
     }
 }

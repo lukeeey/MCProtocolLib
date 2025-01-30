@@ -11,11 +11,13 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.geysermc.mcprotocollib.network.BuiltinFlags;
 import org.geysermc.mcprotocollib.network.ClientSession;
+import org.geysermc.mcprotocollib.network.PacketFlow;
 import org.geysermc.mcprotocollib.network.ProxyInfo;
 import org.geysermc.mcprotocollib.network.helper.NettyHelper;
 import org.geysermc.mcprotocollib.network.helper.TransportHelper;
 import org.geysermc.mcprotocollib.network.netty.MinecraftChannelInitializer;
 import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
+import org.geysermc.mcprotocollib.protocol.MinecraftProtocol;
 
 import java.net.SocketAddress;
 import java.util.concurrent.CompletableFuture;
@@ -37,19 +39,19 @@ public class ClientNetworkSession extends NetworkSession implements ClientSessio
 
     public ClientNetworkSession(
         @NonNull SocketAddress remoteAddress,
-        @NonNull PacketProtocol protocol,
+        @NonNull MinecraftProtocol protocol,
         @NonNull Executor packetHandlerExecutor,
         @Nullable SocketAddress bindAddress,
         @Nullable ProxyInfo proxy
     ) {
-        super(remoteAddress, protocol, packetHandlerExecutor);
+        super(remoteAddress, protocol, packetHandlerExecutor, PacketFlow.CLIENTBOUND);
         this.bindAddress = bindAddress;
         this.proxy = proxy;
     }
 
     @Override
     public void connect(boolean wait) {
-        if (this.disconnected) {
+        if (this.disconnectionHandled) {
             throw new IllegalStateException("Session has already been disconnected.");
         }
 

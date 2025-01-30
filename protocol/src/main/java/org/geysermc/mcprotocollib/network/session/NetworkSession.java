@@ -4,11 +4,13 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import lombok.Getter;
 import net.kyori.adventure.text.Component;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.geysermc.mcprotocollib.network.Flag;
 import org.geysermc.mcprotocollib.network.NetworkConstants;
+import org.geysermc.mcprotocollib.network.PacketFlow;
 import org.geysermc.mcprotocollib.network.Session;
 import org.geysermc.mcprotocollib.network.compression.CompressionConfig;
 import org.geysermc.mcprotocollib.network.crypt.EncryptionConfig;
@@ -18,8 +20,13 @@ import org.geysermc.mcprotocollib.network.event.session.DisconnectingEvent;
 import org.geysermc.mcprotocollib.network.event.session.PacketSendingEvent;
 import org.geysermc.mcprotocollib.network.event.session.SessionEvent;
 import org.geysermc.mcprotocollib.network.event.session.SessionListener;
+import org.geysermc.mcprotocollib.network.helper.DisconnectionDetails;
+import org.geysermc.mcprotocollib.network.netty.FlushHandler;
 import org.geysermc.mcprotocollib.network.packet.Packet;
-import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
+import org.geysermc.mcprotocollib.protocol.MinecraftProtocol;
+import org.geysermc.mcprotocollib.protocol.data.ProtocolState;
+import org.geysermc.mcprotocollib.protocol.packet.common.clientbound.ClientboundDisconnectPacket;
+import org.geysermc.mcprotocollib.protocol.packet.login.clientbound.ClientboundLoginDisconnectPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,20 +43,31 @@ import java.util.function.Supplier;
 public abstract class NetworkSession extends SimpleChannelInboundHandler<Packet> implements Session {
     private static final Logger log = LoggerFactory.getLogger(NetworkSession.class);
 
+    private volatile boolean sendLoginDisconnect = true;
+    protected final PacketFlow receiving;
     protected final SocketAddress remoteAddress;
-    protected final PacketProtocol protocol;
+    protected final MinecraftProtocol protocol;
     protected final Executor packetHandlerExecutor;
 
     private final Map<String, Object> flags = new HashMap<>();
     private final List<SessionListener> listeners = new CopyOnWriteArrayList<>();
 
     private Channel channel;
-    protected boolean disconnected = false;
+    @Nullable
+    @Getter
+    private DisconnectionDetails disconnectionDetails;
+    @Nullable
+    @Getter
+    private volatile DisconnectionDetails delayedDisconnect;
+    @Getter
+    protected boolean disconnectionHandled;
+    private boolean handlingFault;
 
-    public NetworkSession(SocketAddress remoteAddress, PacketProtocol protocol, Executor packetHandlerExecutor) {
+    public NetworkSession(SocketAddress remoteAddress, MinecraftProtocol protocol, Executor packetHandlerExecutor, PacketFlow receiving) {
         this.remoteAddress = remoteAddress;
         this.protocol = protocol;
         this.packetHandlerExecutor = packetHandlerExecutor;
+        this.receiving = receiving;
     }
 
     @Override
@@ -63,7 +81,7 @@ public abstract class NetworkSession extends SimpleChannelInboundHandler<Packet>
     }
 
     @Override
-    public PacketProtocol getPacketProtocol() {
+    public MinecraftProtocol getPacketProtocol() {
         return this.protocol;
     }
 
@@ -171,7 +189,7 @@ public abstract class NetworkSession extends SimpleChannelInboundHandler<Packet>
 
     @Override
     public boolean isConnected() {
-        return this.channel != null && this.channel.isOpen() && !this.disconnected;
+        return this.channel != null && this.channel.isOpen();
     }
 
     @Override
@@ -198,26 +216,33 @@ public abstract class NetworkSession extends SimpleChannelInboundHandler<Packet>
                     }
 
                     callPacketSent(toSend);
-                } else {
-                    exceptionCaught(null, future.cause());
                 }
-            });
+            }).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
         }
     }
 
     @Override
-    public void disconnect(@NonNull Component reason, @Nullable Throwable cause) {
-        if (this.disconnected) {
-            return;
+    public void disconnect(@NonNull DisconnectionDetails disconnectionDetails) {
+        if (this.channel == null) {
+            this.delayedDisconnect = disconnectionDetails;
         }
 
-        this.disconnected = true;
+        boolean wasDisconnectionHandled = this.disconnectionHandled;
+        if (!wasDisconnectionHandled) {
+            this.disconnectionHandled = true;
+        }
 
-        if (this.channel != null && this.channel.isOpen()) {
-            this.callEvent(new DisconnectingEvent(this, reason, cause));
-            this.channel.flush().close().addListener((ChannelFutureListener) future -> callEvent(new DisconnectedEvent(NetworkSession.this, reason, cause)));
-        } else {
-            this.callEvent(new DisconnectedEvent(this, reason, cause));
+        if (!wasDisconnectionHandled) {
+            this.callEvent(new DisconnectingEvent(this, disconnectionDetails));
+        }
+
+        if (this.isConnected()) {
+            this.channel.close().awaitUninterruptibly();
+            this.disconnectionDetails = disconnectionDetails;
+        }
+
+        if (!wasDisconnectionHandled) {
+            this.callEvent(new DisconnectedEvent(this, disconnectionDetails));
         }
     }
 
@@ -239,42 +264,81 @@ public abstract class NetworkSession extends SimpleChannelInboundHandler<Packet>
     }
 
     @Override
+    public void switchInboundState(ProtocolState state) {
+        protocol.setInboundState(state);
+
+        // We switched to the new inbound state
+        // we can start reading again
+        setAutoRead(true);
+    }
+
+    @Override
+    public void switchOutboundState(ProtocolState state) {
+        getChannel().writeAndFlush(FlushHandler.FLUSH_PACKET).syncUninterruptibly();
+
+        protocol.setOutboundState(state);
+        sendLoginDisconnect = state == ProtocolState.LOGIN;
+    }
+
+    @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        if (this.disconnected || this.channel != null) {
-            ctx.channel().close();
-            return;
-        }
-
+        super.channelActive(ctx);
         this.channel = ctx.channel();
-
-        this.callEvent(new ConnectedEvent(this));
+        DisconnectionDetails delayedDisconnect = this.delayedDisconnect;
+        if (delayedDisconnect != null) {
+            this.disconnect(delayedDisconnect);
+        } else {
+            this.callEvent(new ConnectedEvent(this));
+        }
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        if (ctx.channel() == this.channel) {
-            this.disconnect(Component.translatable("disconnect.endOfStream"));
-        }
+        this.disconnect(Component.translatable("disconnect.endOfStream"));
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        Component message;
-        if (cause instanceof TimeoutException) {
-            message = Component.translatable("disconnect.timeout");
-        } else {
-            message = Component.translatable("disconnect.genericReason", Component.text("Internal Exception: " + cause));
-        }
+        boolean wasNotHandlingFault = !this.handlingFault;
+        this.handlingFault = true;
+        if (this.channel.isOpen()) {
+            if (cause instanceof TimeoutException) {
+                this.disconnect(Component.translatable("disconnect.timeout"));
+            } else {
+                Component message = Component.translatable("disconnect.genericReason", Component.text("Internal Exception: " + cause));
+                DisconnectionDetails disconnectionDetails = new DisconnectionDetails(message, cause);
+                if (wasNotHandlingFault) {
+                    if (this.getSending() == PacketFlow.CLIENTBOUND) {
+                        Packet packet = this.sendLoginDisconnect ? new ClientboundLoginDisconnectPacket(message) : new ClientboundDisconnectPacket(message);
+                        this.send(packet, () -> this.disconnect(disconnectionDetails));
+                    } else {
+                        this.disconnect(disconnectionDetails);
+                    }
 
-        this.disconnect(message, cause);
+                    this.setAutoRead(false);
+                } else {
+                    this.disconnect(disconnectionDetails);
+                }
+            }
+        }
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Packet packet) {
-        if (packet.shouldRunOnGameThread()) {
-            packetHandlerExecutor.execute(() -> this.callPacketReceived(packet));
-        } else {
-            this.callPacketReceived(packet);
+        if (this.channel.isOpen()) {
+            if (packet.shouldRunOnGameThread()) {
+                packetHandlerExecutor.execute(() -> this.callPacketReceived(packet));
+            } else {
+                this.callPacketReceived(packet);
+            }
         }
+    }
+
+    public PacketFlow getReceiving() {
+        return this.receiving;
+    }
+
+    public PacketFlow getSending() {
+        return this.receiving.opposite();
     }
 }

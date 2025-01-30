@@ -105,9 +105,8 @@ public class PacketRegistry {
      * @return The created packet.
      * @throws IllegalArgumentException If the packet ID is not registered.
      */
-    @SuppressWarnings("unchecked")
     public Packet createClientboundPacket(int id, ByteBuf buf) {
-        PacketDefinition<?> definition = (PacketDefinition<?>) this.clientbound.get(id);
+        PacketDefinition<?> definition = this.clientbound.get(id);
         if (definition == null) {
             throw new IllegalArgumentException("Invalid packet id: " + id);
         }
@@ -166,9 +165,8 @@ public class PacketRegistry {
      * @return The created packet.
      * @throws IllegalArgumentException If the packet ID is not registered.
      */
-    @SuppressWarnings("unchecked")
     public Packet createServerboundPacket(int id, ByteBuf buf) {
-        PacketDefinition<?> definition = (PacketDefinition<?>) this.serverbound.get(id);
+        PacketDefinition<?> definition = this.serverbound.get(id);
         if (definition == null) {
             throw new IllegalArgumentException("Invalid packet id: " + id);
         }

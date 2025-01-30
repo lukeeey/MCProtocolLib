@@ -5,8 +5,8 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 import org.geysermc.mcprotocollib.network.ProxyInfo;
 import org.geysermc.mcprotocollib.network.netty.DefaultPacketHandlerExecutor;
-import org.geysermc.mcprotocollib.network.packet.PacketProtocol;
 import org.geysermc.mcprotocollib.network.session.ClientNetworkSession;
+import org.geysermc.mcprotocollib.protocol.MinecraftProtocol;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -18,7 +18,7 @@ import java.util.concurrent.Executor;
 @NoArgsConstructor(access = lombok.AccessLevel.PRIVATE)
 public final class ClientNetworkSessionFactory {
     private SocketAddress remoteSocketAddress;
-    private PacketProtocol protocol;
+    private MinecraftProtocol protocol;
     private Executor packetHandlerExecutor;
     private SocketAddress bindSocketAddress;
     private ProxyInfo proxy;
